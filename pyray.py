@@ -30,7 +30,7 @@ class Material:
         self.difuse_color = np.array(color)
         self.specular_exponent = float(spec)
 
-if os.environ['NUMBA_DISABLE_JIT'] == '1':
+if os.environ.get('NUMBA_DISABLE_JIT') == '1':
     material_type = None
 else:
     material_type = deferred_type()

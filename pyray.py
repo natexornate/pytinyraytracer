@@ -1,6 +1,6 @@
 from PIL import Image
 import math
-import sys
+import os
 import numpy as np
 from numpy import linalg as LA
 import time
@@ -28,8 +28,11 @@ class Material:
         self.color = np.array(color)
         self.difuse_color = self.color
 
-material_type = deferred_type()
-material_type.define(Material.class_type.instance_type)
+if os.environ['NUMBA_DISABLE_JIT'] == '1':
+    material_type = None
+else:
+    material_type = deferred_type()
+    material_type.define(Material.class_type.instance_type)
 
 sphereSpec = [
     ('center', numba.float64[:]),

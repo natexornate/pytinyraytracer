@@ -18,15 +18,17 @@ class Light:
         self.intensity = float(intensity)
 
 matSpec = [
-    ('color', numba.float64[:]),
+    ('albedo', numba.float64[:]),
     ('difuse_color', numba.float64[:]),
+    ('specular_exponent', numba.float64),
 ]
 
 @jitclass(matSpec)
 class Material:
-    def __init__(self, color):
-        self.color = np.array(color)
-        self.difuse_color = self.color
+    def __init__(self, albedo, color, spec):
+        self.albedo = np.array(albedo)
+        self.difuse_color = np.array(color)
+        self.specular_exponent = float(spec)
 
 if os.environ['NUMBA_DISABLE_JIT'] == '1':
     material_type = None
@@ -72,6 +74,10 @@ class Sphere:
         return (True, t0)
 
 @njit
+def reflect(I, N):
+    return I - N * 2.0 * np.sum(I * N)
+
+@njit
 def scene_intersect(orig, dir, spheres):
     spheres_dist = 1e308
     N = np.array([0.0,0.0,0.0])
@@ -94,11 +100,15 @@ def cast_ray(orig, dir, spheres, background, lights):
     (spheres_dist, material, N, point) = scene_intersect(orig, dir, spheres)
     if material is not None and spheres_dist < 1000:
         diffuse_light_intensity = 0.0
+        specular_light_intensity = 0.0
         for l in lights:
             light_dir = l.position - point
             light_dir = light_dir/LA.norm(light_dir)
             diffuse_light_intensity += l.intensity * max(0.0, np.sum(light_dir*N))
-        return material.difuse_color * diffuse_light_intensity
+            base = max(0.0, np.sum(-reflect(-light_dir, N) * dir))
+            l_spec = np.power(base, material.specular_exponent) * l.intensity
+            specular_light_intensity += l_spec
+        return material.difuse_color * diffuse_light_intensity * material.albedo[0] + np.array([1.,1.,1.])*specular_light_intensity*material.albedo[1]
     return background.difuse_color
 
 @njit
@@ -136,14 +146,17 @@ def render(sphere, background, lights):
     for j in range(height):
         for i in range(width):
             pix = framebuffer[i+j*width]
+            maximum = max(pix)
+            if maximum > 1:
+                pix = pix*(1/maximum)
             data[i,j] = (int(pix[0] * 255), int(pix[1] * 255), int(pix[2] * 255))
 
     img.save('out.png')
 
 if __name__ == "__main__":
-    ivory = Material([0.4, 0.4, 0.3])
-    red_rubber = Material([0.3, 0.1, 0.1])
-    background = Material([0.2, 0.7, 0.8])
+    ivory = Material([0.6, 0.3], [0.4, 0.4, 0.3], 50.)
+    red_rubber = Material([0.9, 0.1], [0.3, 0.1, 0.1], 10.)
+    background = Material([1., 0.], [0.2, 0.7, 0.8], 0.)
 
     s = []
     s.append(Sphere([-3.0,  0.0,    -16.0], 2.0, ivory))
@@ -152,7 +165,9 @@ if __name__ == "__main__":
     s.append(Sphere([7.0,   5.0,    -18.0], 4.0, ivory))
 
     l = []
-    l.append(Light([-20.0,   20.0,    20.0], 1.5))
+    l.append(Light([-20.0,  20.0,    20.0], 1.5))
+    l.append(Light([30.0,   50.0,    -25.0], 1.8))
+    l.append(Light([30.0,   20.0,    30.0], 1.7))
 
     start = time.time()
     render(s, background, l)

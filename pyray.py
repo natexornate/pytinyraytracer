@@ -93,17 +93,31 @@ def scene_intersect(orig, dir, spheres):
                 N = N_vec/LA.norm(N_vec)
                 material = s.material
     
-    return (spheres_dist, material, N, hit)
+    return (spheres_dist<1000, material, N, hit)
 
 @njit
 def cast_ray(orig, dir, spheres, background, lights):
-    (spheres_dist, material, N, point) = scene_intersect(orig, dir, spheres)
-    if material is not None and spheres_dist < 1000:
+    (intersect, material, N, point) = scene_intersect(orig, dir, spheres)
+    if intersect:
         diffuse_light_intensity = 0.0
         specular_light_intensity = 0.0
         for l in lights:
             light_dir = l.position - point
-            light_dir = light_dir/LA.norm(light_dir)
+            light_distance = LA.norm(light_dir)
+            light_dir = light_dir/light_distance
+
+            shadow_orig = point
+            if np.sum(light_dir*N) < 0:
+                shadow_orig -= N*1e-3
+            else:
+                shadow_orig += N*1e-3
+            
+            (shad_intersect, tmpmat, shadow_N, shadow_pt) = scene_intersect(shadow_orig, light_dir, spheres)
+            if shad_intersect:
+                shadow_dist = LA.norm(shadow_pt - shadow_orig)
+                if shadow_dist < light_distance:
+                    continue
+            
             diffuse_light_intensity += l.intensity * max(0.0, np.sum(light_dir*N))
             base = max(0.0, np.sum(-reflect(-light_dir, N) * dir))
             l_spec = np.power(base, material.specular_exponent) * l.intensity
@@ -114,17 +128,13 @@ def cast_ray(orig, dir, spheres, background, lights):
 @njit
 def getFB(width, height, spheres, background, lights):
     fov = int(math.pi / 2)
-    tanfovo2 = math.tan(fov/2)
-    tanfovo2timeswidthdivheight = tanfovo2*width/float(height)
-    fwidth = float(width)
-    fheight = float(height)
     origin = np.array([0.,0.,0.])
     framebuffer = []
 
     for j in range(height):
         for i in range(width):
-            x =  (2*(i + 0.5)/fwidth  - 1)*tanfovo2timeswidthdivheight
-            y = -(2*(j + 0.5)/fheight - 1)*tanfovo2
+            x =  (2*(i + 0.5)/float(width)  - 1)*math.tan(fov/2.)*width/float(height)
+            y = -(2*(j + 0.5)/float(height) - 1)*math.tan(fov/2.)
             p = np.array([x,y,-1])
             dir = p/LA.norm(p)
             framebuffer.append(cast_ray(origin, dir, spheres, background, lights))
@@ -143,6 +153,7 @@ def render(sphere, background, lights):
 
     data = img.load()
 
+    start = time.time()
     for j in range(height):
         for i in range(width):
             pix = framebuffer[i+j*width]
@@ -150,8 +161,10 @@ def render(sphere, background, lights):
             if maximum > 1:
                 pix = pix*(1/maximum)
             data[i,j] = (int(pix[0] * 255), int(pix[1] * 255), int(pix[2] * 255))
-
+    data_end = time.time()
     img.save('out.png')
+    save_end = time.time()
+    print("Data time: {} \tSaving time: {}".format(data_end - start, save_end - data_end))
 
 if __name__ == "__main__":
     ivory = Material([0.6, 0.3], [0.4, 0.4, 0.3], 50.)

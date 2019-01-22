@@ -4,23 +4,31 @@ import sys
 import numpy as np
 from numpy import linalg as LA
 import time
-from numba import jitclass
-from numba import njit
+from numba import jitclass, njit, deferred_type
 import numba
 
+matSpec = [
+    ('color', numba.float64[:]),
+    ('difuse_color', numba.float64[:]),
+]
+
+@jitclass(matSpec)
 class Material:
     def __init__(self, color):
-        self.color = color
-        self.difuse_color = color
+        self.color = np.array(color)
+        self.difuse_color = self.color
 
+material_type = deferred_type()
+material_type.define(Material.class_type.instance_type)
 
 sphereSpec = [
     ('center', numba.float64[:]),
     ('radius', numba.float64),
-    ('radius2', numba.float64), 
+    ('radius2', numba.float64),
+    ('material', material_type),
 ]
 
-#@jitclass(sphereSpec)
+@jitclass(sphereSpec)
 class Sphere:
     def __init__(self, center, radius, material):
         self.center = np.array(center)
@@ -50,8 +58,9 @@ class Sphere:
 
         return (True, t0)
 
+@njit
 def scene_intersect(orig, dir, spheres):
-    spheres_dist = sys.float_info.max
+    spheres_dist = 1e308
     N = None
     material = None
     for s in spheres:
@@ -66,15 +75,15 @@ def scene_intersect(orig, dir, spheres):
     
     return (spheres_dist, material, N)
 
-#@njit
-def cast_ray(orig, dir, spheres):
+@njit
+def cast_ray(orig, dir, spheres, background):
     (spheres_dist, material, N) = scene_intersect(orig, dir, spheres)
     if material is not None and spheres_dist < 1000:
         return material.difuse_color
-    return (0.2, 0.7, 0.8)
+    return background.difuse_color
 
-#@njit
-def getFB(width, height, spheres):
+@njit
+def getFB(width, height, spheres, background):
     fov = int(math.pi / 2)
     tanfovo2 = math.tan(fov/2)
     tanfovo2timeswidthdivheight = tanfovo2*width/float(height)
@@ -89,19 +98,19 @@ def getFB(width, height, spheres):
             y = -(2*(j + 0.5)/fheight - 1)*tanfovo2
             p = np.array([x,y,-1])
             dir = p/LA.norm(p)
-            framebuffer.append(cast_ray(origin, dir, spheres))
+            framebuffer.append(cast_ray(origin, dir, spheres, background))
         if j % 32 == 0:
             print("Done row")
 
     return framebuffer
 
-def render(sphere):
+def render(sphere, background):
     print("Hello, World!\n")
     width = 1024
     height = 768
     img = Image.new('RGB', (width, height))
 
-    framebuffer = getFB(width, height, sphere)
+    framebuffer = getFB(width, height, sphere, background)
 
     data = img.load()
 
@@ -115,6 +124,7 @@ def render(sphere):
 if __name__ == "__main__":
     ivory = Material([0.4, 0.4, 0.3])
     red_rubber = Material([0.3, 0.1, 0.1])
+    background = Material([0.2, 0.7, 0.8])
 
     s = []
     s.append(Sphere([-3.0,  0.0,    -16.0], 2.0, ivory))
@@ -123,7 +133,7 @@ if __name__ == "__main__":
     s.append(Sphere([7.0,   5.0,    -18.0], 4.0, ivory))
 
     start = time.time()
-    render(s)
+    render(s, background)
     stop = time.time()
 
     print('Elapsed time: {}'.format(stop - start))

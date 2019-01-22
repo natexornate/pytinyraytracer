@@ -15,8 +15,9 @@ class Material:
 
 
 sphereSpec = [
-    ('center', numba.float64[:]),               # a simple scalar field
-    ('radius', numba.float64),          # an array field
+    ('center', numba.float64[:]),
+    ('radius', numba.float64),
+    ('radius2', numba.float64), 
 ]
 
 #@jitclass(sphereSpec)
@@ -24,16 +25,22 @@ class Sphere:
     def __init__(self, center, radius, material):
         self.center = np.array(center)
         self.radius = float(radius)
+        self.radius2 = self.radius * self.radius
         self.material = material
 
     def ray_intersect(self, orig, dir):
         t0 = 0.0
         L = np.subtract(self.center, orig)
-        tca = np.sum(L*dir)
-        d2 = np.sum(L*L) - (tca*tca)
-        if d2 > (self.radius * self.radius):
+        #tca = np.sum(L*dir)
+        tca_t = L*dir
+        tca = tca_t[0] + tca_t[1] + tca_t[2]
+        #d2 = np.sum(L*L) - (tca*tca)
+        ll_t = L*L
+        ll = ll_t[0] + ll_t[1] + ll_t[2]
+        d2 = ll - (tca*tca)
+        if d2 > self.radius2:
             return (False, t0)
-        thc = math.sqrt((self.radius * self.radius) - d2)
+        thc = math.sqrt(self.radius2 - d2)
         t0 = tca - thc
         t1 = tca + thc
         if t0 < 0:

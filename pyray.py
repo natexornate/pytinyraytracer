@@ -7,6 +7,16 @@ import time
 from numba import jitclass, njit, deferred_type
 import numba
 
+lightSpec = [
+    ('position', numba.float64[:]),
+    ('intensity', numba.float64),
+]
+@jitclass(lightSpec)
+class Light:
+    def __init__(self, position, intensity):
+        self.position = np.array(position)
+        self.intensity = float(intensity)
+
 matSpec = [
     ('color', numba.float64[:]),
     ('difuse_color', numba.float64[:]),
@@ -18,14 +28,14 @@ class Material:
         self.color = np.array(color)
         self.difuse_color = self.color
 
-material_type = deferred_type()
-material_type.define(Material.class_type.instance_type)
+#material_type = deferred_type()
+#material_type.define(Material.class_type.instance_type)
 
 sphereSpec = [
     ('center', numba.float64[:]),
     ('radius', numba.float64),
     ('radius2', numba.float64),
-    ('material', material_type),
+#    ('material', material_type),
 ]
 
 @jitclass(sphereSpec)
@@ -63,27 +73,33 @@ def scene_intersect(orig, dir, spheres):
     spheres_dist = 1e308
     N = None
     material = None
+    hit = None
     for s in spheres:
         (intersect, dist) = s.ray_intersect(orig, dir)
         if intersect:
             if dist < spheres_dist:
                 spheres_dist = dist
                 hit = orig + (dir * dist)
-                N_vec = (hit - s.center)
+                N_vec = np.subtract(hit, s.center)
                 N = N_vec/LA.norm(N_vec)
                 material = s.material
     
-    return (spheres_dist, material, N)
+    return (spheres_dist, material, N, hit)
 
 @njit
-def cast_ray(orig, dir, spheres, background):
-    (spheres_dist, material, N) = scene_intersect(orig, dir, spheres)
+def cast_ray(orig, dir, spheres, background, lights):
+    (spheres_dist, material, N, point) = scene_intersect(orig, dir, spheres)
     if material is not None and spheres_dist < 1000:
-        return material.difuse_color
+        diffuse_light_intensity = 0.0
+        for l in lights:
+            light_dir = np.subtract(l.position, point)
+            light_dir = light_dir/LA.norm(light_dir)
+            diffuse_light_intensity += l.intensity * max(0.0, np.sum(light_dir*N))
+        return material.difuse_color * diffuse_light_intensity
     return background.difuse_color
 
 @njit
-def getFB(width, height, spheres, background):
+def getFB(width, height, spheres, background, lights):
     fov = int(math.pi / 2)
     tanfovo2 = math.tan(fov/2)
     tanfovo2timeswidthdivheight = tanfovo2*width/float(height)
@@ -98,19 +114,19 @@ def getFB(width, height, spheres, background):
             y = -(2*(j + 0.5)/fheight - 1)*tanfovo2
             p = np.array([x,y,-1])
             dir = p/LA.norm(p)
-            framebuffer.append(cast_ray(origin, dir, spheres, background))
+            framebuffer.append(cast_ray(origin, dir, spheres, background, lights))
         if j % 32 == 0:
             print("Done row")
 
     return framebuffer
 
-def render(sphere, background):
+def render(sphere, background, lights):
     print("Hello, World!\n")
     width = 1024
     height = 768
     img = Image.new('RGB', (width, height))
 
-    framebuffer = getFB(width, height, sphere, background)
+    framebuffer = getFB(width, height, sphere, background, lights)
 
     data = img.load()
 
@@ -132,8 +148,11 @@ if __name__ == "__main__":
     s.append(Sphere([1.5,   -0.5,   -18.0], 3.0, red_rubber))
     s.append(Sphere([7.0,   5.0,    -18.0], 4.0, ivory))
 
+    l = []
+    l.append(Light([-20.0,   20.0,    20.0], 1.5))
+
     start = time.time()
-    render(s, background)
+    render(s, background, l)
     stop = time.time()
 
     print('Elapsed time: {}'.format(stop - start))

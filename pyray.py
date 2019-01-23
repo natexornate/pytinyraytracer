@@ -57,13 +57,8 @@ class Sphere:
     def ray_intersect(self, orig, dir):
         t0 = 0.0
         L = np.subtract(self.center, orig)
-        #tca = np.sum(L*dir)
-        tca_t = L*dir
-        tca = tca_t[0] + tca_t[1] + tca_t[2]
-        #d2 = np.sum(L*L) - (tca*tca)
-        ll_t = L*L
-        ll = ll_t[0] + ll_t[1] + ll_t[2]
-        d2 = ll - (tca*tca)
+        tca = np.sum(L*dir)
+        d2 = np.sum(L*L) - (tca*tca)
         if d2 > self.radius2:
             return (False, t0)
         thc = math.sqrt(self.radius2 - d2)

@@ -182,10 +182,9 @@ def getFB(width, height, spheres, background, lights):
 
     for j in range(height):
         for i in range(width):
-            x =  (2*(i + 0.5)/float(width)  - 1)*math.tan(fov/2.)*width/float(height)
-            y = -(2*(j + 0.5)/float(height) - 1)*math.tan(fov/2.)
-            p = np.array([x,y,-1])
-            dir = p/LA.norm(p)
+            x =  (i + 0.5) - width/2.
+            y = -(j + 0.5) + height/2. # flips the image at the same time
+            dir = normalize(np.array([x, y, -height/(2.*math.tan(fov/2.))]))
             framebuffer.append(cast_ray(origin, dir, spheres, background, lights, 0))
         if j % 32 == 0:
             print("Done row")

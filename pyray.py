@@ -111,8 +111,7 @@ def scene_intersect(orig, dir, spheres):
             if dist < spheres_dist:
                 spheres_dist = dist
                 hit = orig + (dir * dist)
-                N_vec = hit - s.center
-                N = N_vec/LA.norm(N_vec)
+                N = normalize(hit - s.center)
                 material = s.material
     
     checkerboard_dist = 1e308
@@ -136,8 +135,7 @@ def cast_ray(orig, dir, spheres, background, lights, depth):
         return background.difuse_color
     (intersect, material, N, point) = scene_intersect(orig, dir, spheres)
     if intersect:
-        reflect_dir_N = reflect(dir, N)
-        reflect_dir = reflect_dir_N/LA.norm(reflect_dir_N)
+        reflect_dir = normalize(reflect(dir, N))
         if np.sum(reflect_dir*N) < 0:
             reflect_orig = point - N*1e-3
         else:

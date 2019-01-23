@@ -5,7 +5,7 @@ I used Python for fun. I'm not a Python expert so I may not be using best practi
 
 For math/vectors I used Numpy, for image saving I used Pillow to save directly to PNG. I still think this is in the spirit of the original course in regards to third party libraries.
 
-I'm currently starting on Step 9. Here's the current output:
+I'm currently finished with step 9, here's the output:
 
 ![Output](out.png)
 

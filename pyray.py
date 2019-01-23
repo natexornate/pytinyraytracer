@@ -120,7 +120,21 @@ def scene_intersect(orig, dir, spheres):
                 N = N_vec/LA.norm(N_vec)
                 material = s.material
     
-    return (spheres_dist<1000, material, N, hit)
+    checkerboard_dist = 1e308
+    if abs(dir[1]) > 1e-3:
+        d = -(orig[1] + 4)/dir[1]
+        pt = orig + dir*d
+        if d > 0 and abs(pt[0]) < 10 and pt[2] < -10 and pt[2] > -30 and d < spheres_dist:
+            checkerboard_dist = d
+            hit = pt
+            N = np.array([0., 1., 0.])
+            square = (int(.5*hit[0]+1000) + int(.5*hit[2]))
+            material = Material(1.0, [1., 0., 0., 0.], [1.,.7,.3], 0.)
+            if square & 1:
+                material.difuse_color = np.array([1.,1.,1.])
+            material.difuse_color *= .3
+
+    return (min(spheres_dist, checkerboard_dist)<1000, material, N, hit)
 
 @njit
 def cast_ray(orig, dir, spheres, background, lights, depth):

@@ -21,14 +21,16 @@ matSpec = [
     ('albedo', numba.float64[:]),
     ('difuse_color', numba.float64[:]),
     ('specular_exponent', numba.float64),
+    ('refractive_index', numba.float64),
 ]
 
 @jitclass(matSpec)
 class Material:
-    def __init__(self, albedo, color, spec):
+    def __init__(self, refractive_index, albedo, color, spec):
         self.albedo = np.array(albedo)
         self.difuse_color = np.array(color)
         self.specular_exponent = float(spec)
+        self.refractive_index = float(refractive_index)
 
 if os.environ.get('NUMBA_DISABLE_JIT') == '1':
     material_type = None
@@ -78,6 +80,30 @@ def reflect(I, N):
     return I - N * 2.0 * np.sum(I * N)
 
 @njit
+def normalize(vec):
+    return vec/LA.norm(vec)
+
+@njit
+def refract(I, N, refractive_index):
+    cosi = -max(-1., min(1., np.sum(I*N)))
+    etai = 1
+    etat = refractive_index
+    if cosi < 0:
+        cosi = -cosi
+        n = -N
+        etai, etat = etat, etai
+    else:
+        n = N
+    
+    eta = etai / etat
+    k = 1 - eta*eta*(1 - cosi*cosi)
+
+    if k < 0:
+        return np.array([0.,0.,0.])
+    else:
+        return I*eta + n*(eta * cosi - math.sqrt(k))
+
+@njit
 def scene_intersect(orig, dir, spheres):
     spheres_dist = 1e308
     N = np.array([0.0,0.0,0.0])
@@ -109,6 +135,13 @@ def cast_ray(orig, dir, spheres, background, lights, depth):
             reflect_orig = point + N*1e-3
         reflect_color = cast_ray(reflect_orig, reflect_dir, spheres, background, lights, depth+1)
 
+        refract_dir = normalize(refract(dir, N, material.refractive_index))
+        if np.sum(refract_dir * N) < 0:
+            refract_orig = point - N*1e-3
+        else:
+            refract_orig = point + N*1e-3
+        refract_color = cast_ray(refract_orig, refract_dir, spheres, background, lights, depth+1)
+
         diffuse_light_intensity = 0.0
         specular_light_intensity = 0.0
         for l in lights:
@@ -131,7 +164,7 @@ def cast_ray(orig, dir, spheres, background, lights, depth):
             base = max(0.0, np.sum(-reflect(-light_dir, N) * dir))
             l_spec = np.power(base, material.specular_exponent) * l.intensity
             specular_light_intensity += l_spec
-        return material.difuse_color * diffuse_light_intensity * material.albedo[0] + np.array([1.,1.,1.])*specular_light_intensity*material.albedo[1] + reflect_color*material.albedo[2]
+        return material.difuse_color * diffuse_light_intensity * material.albedo[0] + np.array([1.,1.,1.])*specular_light_intensity*material.albedo[1] + reflect_color*material.albedo[2] + refract_color*material.albedo[3]
     return background.difuse_color
 
 @njit
@@ -176,14 +209,15 @@ def render(sphere, background, lights):
     print("Data time: {} \tSaving time: {}".format(data_end - start, save_end - data_end))
 
 if __name__ == "__main__":
-    ivory =         Material([0.6, 0.3, 0.1], [0.4, 0.4, 0.3], 50.)
-    red_rubber =    Material([0.9, 0.1, 0.0], [0.3, 0.1, 0.1], 10.)
-    mirror =        Material([0.0, 10.0, 0.8], [1.0, 1.0, 1.0], 1425.)
-    background =    Material([1., 0., 0.], [0.2, 0.7, 0.8], 0.)
+    ivory =         Material(1.0, [0.6, 0.3, 0.1, 0.0],     [0.4, 0.4, 0.3], 50.)
+    glass =         Material(1.5, [0.0, 0.5, 0.1, 0.8],     [0.6, 0.7, 0.8], 125.)
+    red_rubber =    Material(1.0, [0.9, 0.1, 0.0, 0.0],     [0.3, 0.1, 0.1], 10.)
+    mirror =        Material(1.0, [0.0, 10.0, 0.8, 0.0],    [1.0, 1.0, 1.0], 1425.)
+    background =    Material(1.0, [1., 0., 0., 0.],         [0.2, 0.7, 0.8], 0.)
 
     s = []
     s.append(Sphere([-3.0,  0.0,    -16.0], 2.0, ivory))
-    s.append(Sphere([-1.0,  -1.5,   -12.0], 2.0, mirror))
+    s.append(Sphere([-1.0,  -1.5,   -12.0], 2.0, glass))
     s.append(Sphere([1.5,   -0.5,   -18.0], 3.0, red_rubber))
     s.append(Sphere([7.0,   5.0,    -18.0], 4.0, mirror))
 

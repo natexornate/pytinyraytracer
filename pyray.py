@@ -129,10 +129,9 @@ def scene_intersect(orig, dir, spheres):
             hit = pt
             N = np.array([0., 1., 0.])
             square = (int(.5*hit[0]+1000) + int(.5*hit[2]))
-            material = Material(1.0, [1., 0., 0., 0.], [1.,.7,.3], 0.)
+            material = Material(1.0, [1., 0., 0., 0.], [.3,.2,.1], 0.)
             if square & 1:
-                material.difuse_color = np.array([1.,1.,1.])
-            material.difuse_color *= .3
+                material.difuse_color = np.array([.3,.3,.3])
 
     return (min(spheres_dist, checkerboard_dist)<1000, material, N, hit)
 

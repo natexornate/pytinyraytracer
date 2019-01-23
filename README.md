@@ -14,10 +14,11 @@ In an attempt to speed things up, I used the Numba library which JITs the Python
 Requirements:
 * Python (I used 3.7.2)
 * Numpy
+* Scipy
 * Numba
 * Pillow (replacement for PIL)
 
 ```
-$ pip install numba Pillow numpy
+$ pip install numba Pillow numpy scipy
 $ python pyray.py
 ```

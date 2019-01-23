@@ -106,11 +106,10 @@ def cast_ray(orig, dir, spheres, background, lights):
             light_distance = LA.norm(light_dir)
             light_dir = light_dir/light_distance
 
-            shadow_orig = point
             if np.sum(light_dir*N) < 0:
-                shadow_orig -= N*1e-3
+                shadow_orig = point - N*1e-3
             else:
-                shadow_orig += N*1e-3
+                shadow_orig = point + N*1e-3
             
             (shad_intersect, tmpmat, shadow_N, shadow_pt) = scene_intersect(shadow_orig, light_dir, spheres)
             if shad_intersect:

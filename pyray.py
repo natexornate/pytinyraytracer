@@ -176,7 +176,7 @@ def cast_ray(orig, dir, spheres, background, lights, depth):
 
 @njit
 def getFB(width, height, spheres, background, lights):
-    fov = int(math.pi / 2)
+    fov = math.pi / 3.
     origin = np.array([0.,0.,0.])
     framebuffer = []
 

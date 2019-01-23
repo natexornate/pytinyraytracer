@@ -96,9 +96,19 @@ def scene_intersect(orig, dir, spheres):
     return (spheres_dist<1000, material, N, hit)
 
 @njit
-def cast_ray(orig, dir, spheres, background, lights):
+def cast_ray(orig, dir, spheres, background, lights, depth):
+    if depth > 4:
+        return background.difuse_color
     (intersect, material, N, point) = scene_intersect(orig, dir, spheres)
     if intersect:
+        reflect_dir_N = reflect(dir, N)
+        reflect_dir = reflect_dir_N/LA.norm(reflect_dir_N)
+        if np.sum(reflect_dir*N) < 0:
+            reflect_orig = point - N*1e-3
+        else:
+            reflect_orig = point + N*1e-3
+        reflect_color = cast_ray(reflect_orig, reflect_dir, spheres, background, lights, depth+1)
+
         diffuse_light_intensity = 0.0
         specular_light_intensity = 0.0
         for l in lights:
@@ -121,7 +131,7 @@ def cast_ray(orig, dir, spheres, background, lights):
             base = max(0.0, np.sum(-reflect(-light_dir, N) * dir))
             l_spec = np.power(base, material.specular_exponent) * l.intensity
             specular_light_intensity += l_spec
-        return material.difuse_color * diffuse_light_intensity * material.albedo[0] + np.array([1.,1.,1.])*specular_light_intensity*material.albedo[1]
+        return material.difuse_color * diffuse_light_intensity * material.albedo[0] + np.array([1.,1.,1.])*specular_light_intensity*material.albedo[1] + reflect_color*material.albedo[2]
     return background.difuse_color
 
 @njit
@@ -136,7 +146,7 @@ def getFB(width, height, spheres, background, lights):
             y = -(2*(j + 0.5)/float(height) - 1)*math.tan(fov/2.)
             p = np.array([x,y,-1])
             dir = p/LA.norm(p)
-            framebuffer.append(cast_ray(origin, dir, spheres, background, lights))
+            framebuffer.append(cast_ray(origin, dir, spheres, background, lights, 0))
         if j % 32 == 0:
             print("Done row")
 
@@ -166,15 +176,16 @@ def render(sphere, background, lights):
     print("Data time: {} \tSaving time: {}".format(data_end - start, save_end - data_end))
 
 if __name__ == "__main__":
-    ivory = Material([0.6, 0.3], [0.4, 0.4, 0.3], 50.)
-    red_rubber = Material([0.9, 0.1], [0.3, 0.1, 0.1], 10.)
-    background = Material([1., 0.], [0.2, 0.7, 0.8], 0.)
+    ivory =         Material([0.6, 0.3, 0.1], [0.4, 0.4, 0.3], 50.)
+    red_rubber =    Material([0.9, 0.1, 0.0], [0.3, 0.1, 0.1], 10.)
+    mirror =        Material([0.0, 10.0, 0.8], [1.0, 1.0, 1.0], 1425.)
+    background =    Material([1., 0., 0.], [0.2, 0.7, 0.8], 0.)
 
     s = []
     s.append(Sphere([-3.0,  0.0,    -16.0], 2.0, ivory))
-    s.append(Sphere([-1.0,  -1.5,   -12.0], 2.0, red_rubber))
+    s.append(Sphere([-1.0,  -1.5,   -12.0], 2.0, mirror))
     s.append(Sphere([1.5,   -0.5,   -18.0], 3.0, red_rubber))
-    s.append(Sphere([7.0,   5.0,    -18.0], 4.0, ivory))
+    s.append(Sphere([7.0,   5.0,    -18.0], 4.0, mirror))
 
     l = []
     l.append(Light([-20.0,  20.0,    20.0], 1.5))

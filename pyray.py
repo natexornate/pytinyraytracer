@@ -71,15 +71,15 @@ class Sphere:
 
         return (True, t0)
 
-@njit
+@njit(cache=True)
 def reflect(I, N):
     return I - N * 2.0 * np.sum(I * N)
 
-@njit
+@njit(cache=True)
 def normalize(vec):
     return vec/LA.norm(vec)
 
-@njit
+@njit(cache=True)
 def refract(I, N, refractive_index):
     cosi = -max(-1., min(1., np.sum(I*N)))
     etai = 1
